@@ -31,7 +31,9 @@ class AiAgentHaPanel extends LitElement {
       _selectedPrompts: { type: Array, reflect: false, attribute: false },
       _selectedProvider: { type: String, reflect: false, attribute: false },
       _availableProviders: { type: Array, reflect: false, attribute: false },
-      _showProviderDropdown: { type: Boolean, reflect: false, attribute: false }
+      _showProviderDropdown: { type: Boolean, reflect: false, attribute: false },
+      _currentLanguage: { type: String, reflect: false, attribute: false },
+      _predefinedPrompts: { type: Array, reflect: false, attribute: false },
     };
   }
 
@@ -542,25 +544,255 @@ class AiAgentHaPanel extends LitElement {
     this._promptHistoryLoaded = false;
     this._showPredefinedPrompts = true;
     this._showPromptHistory = true;
-    this._predefinedPrompts = [
-      "Build a new automation to turn off all lights at 10:00 PM every day",
-      "What's the current temperature inside and outside?",
-      "Turn on all the lights in the living room",
-      "Show me today's weather forecast",
-      "What devices are currently on?",
-      "Show me the energy usage for today",
-      "Are all the doors and windows locked?",
-      "Turn on movie mode in the living room",
-      "What's the status of my security system?",
-      "Show me who's currently home",
-      "Turn off all devices when I leave home"
-    ];
+    this._currentLanguage = this._detectLanguage();
+    this._predefinedPrompts = this._getPromptsForLanguage(this._currentLanguage);
     this._selectedPrompts = this._getRandomPrompts();
     this._selectedProvider = null;
     this._availableProviders = [];
     this._showProviderDropdown = false;
     this.providersLoaded = false;
     console.debug("AI Agent HA Panel constructor called");
+  }
+
+  _detectLanguage() {
+    // Try to get language from Home Assistant first
+    if (this.hass && this.hass.language) {
+      return this.hass.language;
+    }
+    
+    // Fallback to browser language
+    const browserLang = navigator.language || navigator.userLanguage;
+    const langCode = browserLang.split('-')[0].toLowerCase();
+    
+    // Supported languages (based on existing translation files)
+    const supportedLanguages = ['de', 'en', 'es', 'ca'];
+    
+    return supportedLanguages.includes(langCode) ? langCode : 'en';
+  }
+
+  _getPromptsForLanguage(language) {
+    const prompts = {
+      'de': [
+        // Beleuchtung & Energie
+        "Schalte alle Lichter im Wohnzimmer ein",
+        "Erstelle eine Automatisierung, die alle Lichter um 22:00 Uhr ausschaltet",
+        "Zeige mir den Energieverbrauch für heute",
+        "Dimme das Licht im Schlafzimmer auf 30%",
+        "Schalte alle Geräte aus, wenn ich das Haus verlasse",
+        
+        // Wetter & Klima
+        "Wie ist die aktuelle Temperatur drinnen und draußen?",
+        "Zeige mir die Wettervorhersage für heute",
+        "Stelle die Heizung auf 21°C ein",
+        "Ist es heute warm genug für offene Fenster?",
+        
+        // Sicherheit & Überwachung
+        "Sind alle Türen und Fenster verriegelt?",
+        "Wie ist der Status meines Sicherheitssystems?",
+        "Zeige mir, wer gerade zu Hause ist",
+        "Aktiviere den Nachtmodus",
+        
+        // Unterhaltung & Komfort
+        "Aktiviere den Filmmodus im Wohnzimmer",
+        "Spiele entspannende Musik ab",
+        "Stelle das Smart TV auf Netflix ein",
+        
+        // Haushaltsgeräte
+        "Welche Geräte sind gerade eingeschaltet?",
+        "Starte die Waschmaschine in 30 Minuten",
+        "Ist der Geschirrspüler fertig?",
+        
+                 // Erweiterte Automatisierungen
+         "Erstelle eine Guten-Morgen-Routine",
+         "Richte eine Benachrichtigung ein, wenn jemand nach Hause kommt",
+         "Automatisiere die Bewässerung meiner Pflanzen",
+         
+         // Spezielle Szenarien & Komfort
+         "Erstelle ein romantisches Abendessen-Szenario",
+         "Konfiguriere eine Arbeitsplatz-Routine für Home Office",
+         "Stelle eine automatische Backup-Routine ein",
+         "Überwache die Luftqualität und benachrichtige mich",
+         "Erstelle eine Urlaubseinstellung für alle Geräte",
+         "Richte eine Haustier-Überwachung ein"
+      ],
+      
+      'en': [
+        // Lighting & Energy
+        "Turn on all the lights in the living room",
+        "Build a new automation to turn off all lights at 10:00 PM every day",
+        "Show me the energy usage for today",
+        "Dim the bedroom lights to 30%",
+        "Turn off all devices when I leave home",
+        
+        // Weather & Climate
+        "What's the current temperature inside and outside?",
+        "Show me today's weather forecast",
+        "Set the thermostat to 70°F",
+        "Is it warm enough to open windows today?",
+        
+        // Security & Monitoring
+        "Are all the doors and windows locked?",
+        "What's the status of my security system?",
+        "Show me who's currently home",
+        "Activate night mode",
+        
+        // Entertainment & Comfort
+        "Turn on movie mode in the living room",
+        "Play relaxing music",
+        "Set the smart TV to Netflix",
+        
+        // Appliances
+        "What devices are currently on?",
+        "Start the washing machine in 30 minutes",
+        "Is the dishwasher finished?",
+        
+                 // Advanced Automations
+         "Create a good morning routine",
+         "Set up a notification when someone comes home",
+         "Automate watering my plants",
+         
+         // Special Scenarios & Comfort
+         "Create a romantic dinner scenario",
+         "Configure a home office work routine",
+         "Set up automatic backup routine",
+         "Monitor air quality and notify me",
+         "Create vacation mode for all devices",
+         "Set up pet monitoring system"
+      ],
+      
+      'es': [
+        // Iluminación y Energía
+        "Enciende todas las luces del salón",
+        "Crea una automatización para apagar todas las luces a las 22:00",
+        "Muéstrame el consumo de energía de hoy",
+        "Atenúa las luces del dormitorio al 30%",
+        "Apaga todos los dispositivos cuando salga de casa",
+        
+        // Clima y Tiempo
+        "¿Cuál es la temperatura actual dentro y fuera?",
+        "Muéstrame el pronóstico del tiempo para hoy",
+        "Pon el termostato a 21°C",
+        "¿Hace suficiente calor para abrir las ventanas?",
+        
+        // Seguridad y Monitoreo
+        "¿Están todas las puertas y ventanas cerradas?",
+        "¿Cuál es el estado de mi sistema de seguridad?",
+        "Muéstrame quién está en casa",
+        "Activa el modo nocturno",
+        
+        // Entretenimiento y Comodidad
+        "Activa el modo película en el salón",
+        "Reproduce música relajante",
+        "Pon Netflix en la smart TV",
+        
+        // Electrodomésticos
+        "¿Qué dispositivos están encendidos?",
+        "Inicia la lavadora en 30 minutos",
+        "¿Ha terminado el lavavajillas?",
+        
+                 // Automatizaciones Avanzadas
+         "Crea una rutina de buenos días",
+         "Configura una notificación cuando alguien llegue a casa",
+         "Automatiza el riego de mis plantas",
+         
+         // Escenarios Especiales y Confort
+         "Crea un escenario de cena romántica",
+         "Configura una rutina de oficina en casa",
+         "Establece una rutina de respaldo automático",
+         "Monitorea la calidad del aire y notifícame",
+         "Crea un modo vacaciones para todos los dispositivos",
+         "Configura un sistema de monitoreo de mascotas"
+      ],
+      
+      'ca': [
+        // Il·luminació i Energia
+        "Encén tots els llums del saló",
+        "Crea una automatització per apagar tots els llums a les 22:00",
+        "Mostra'm el consum d'energia d'avui",
+        "Baixa la intensitat dels llums del dormitori al 30%",
+        "Apaga tots els dispositius quan surti de casa",
+        
+        // Clima i Temps
+        "Quina és la temperatura actual dins i fora?",
+        "Mostra'm la previsió del temps per avui",
+        "Posa el termòstat a 21°C",
+        "Fa prou calor per obrir les finestres?",
+        
+        // Seguretat i Monitoratge
+        "Estan totes les portes i finestres tancades?",
+        "Quin és l'estat del meu sistema de seguretat?",
+        "Mostra'm qui és a casa",
+        "Activa el mode nocturn",
+        
+        // Entreteniment i Comoditat
+        "Activa el mode cinema al saló",
+        "Reprodueix música relaxant",
+        "Posa Netflix a la smart TV",
+        
+        // Electrodomèstics
+        "Quins dispositius estan encesos?",
+        "Inicia la rentadora en 30 minuts",
+        "Ha acabat el rentaplats?",
+        
+                 // Automatitzacions Avançades
+         "Crea una rutina de bon dia",
+         "Configura una notificació quan algú arribi a casa",
+         "Automatitza el reg de les meves plantes",
+         
+         // Escenaris Especials i Confort
+         "Crea un escenari de sopar romàntic",
+         "Configura una rutina d'oficina a casa",
+         "Estableix una rutina de còpia de seguretat automàtica",
+         "Monitora la qualitat de l'aire i notifica'm",
+         "Crea un mode vacances per a tots els dispositius",
+         "Configura un sistema de monitoratge de mascotes"
+      ]
+    };
+    
+    return prompts[language] || prompts['en'];
+  }
+
+  _getLocalizedText(key) {
+    const translations = {
+      'de': {
+        'quickActions': 'Schnellaktionen',
+        'suggestions': 'Vorschläge',
+        'recent': 'Kürzlich',
+        'placeholder': 'Frage mich alles über dein Home Assistant...',
+        'clearChat': 'Chat löschen',
+        'aiThinking': 'KI-Agent denkt nach',
+        'model': 'Modell:'
+      },
+      'en': {
+        'quickActions': 'Quick Actions',
+        'suggestions': 'Suggestions',
+        'recent': 'Recent',
+        'placeholder': 'Ask me anything about your Home Assistant...',
+        'clearChat': 'Clear Chat',
+        'aiThinking': 'AI Agent is thinking',
+        'model': 'Model:'
+      },
+      'es': {
+        'quickActions': 'Acciones Rápidas',
+        'suggestions': 'Sugerencias',
+        'recent': 'Reciente',
+        'placeholder': 'Pregúntame cualquier cosa sobre tu Home Assistant...',
+        'clearChat': 'Limpiar Chat',
+        'aiThinking': 'El Agente IA está pensando',
+        'model': 'Modelo:'
+      },
+      'ca': {
+        'quickActions': 'Accions Ràpides',
+        'suggestions': 'Suggeriments',
+        'recent': 'Recent',
+        'placeholder': 'Pregunta\'m qualsevol cosa sobre el teu Home Assistant...',
+        'clearChat': 'Netejar Xat',
+        'aiThinking': 'L\'Agent IA està pensant',
+        'model': 'Model:'
+      }
+    };
+    
+    return translations[this._currentLanguage]?.[key] || translations['en'][key];
   }
 
   _getRandomPrompts() {
@@ -591,6 +823,17 @@ class AiAgentHaPanel extends LitElement {
 
   async updated(changedProps) {
     console.debug("Updated called with:", changedProps);
+
+    // Update language and prompts when hass becomes available
+    if (changedProps.has('hass') && this.hass) {
+      const newLanguage = this._detectLanguage();
+      if (newLanguage !== this._currentLanguage) {
+        this._currentLanguage = newLanguage;
+        this._predefinedPrompts = this._getPromptsForLanguage(this._currentLanguage);
+        this._selectedPrompts = this._getRandomPrompts();
+        console.debug("Language updated to:", this._currentLanguage);
+      }
+    }
 
     // Load providers when hass becomes available
     if (changedProps.has('hass') && this.hass && !this.providersLoaded) {
@@ -668,16 +911,16 @@ class AiAgentHaPanel extends LitElement {
     return html`
       <div class="prompts-section">
         <div class="prompts-header">
-          <span>Quick Actions</span>
+          <span>${this._getLocalizedText('quickActions')}</span>
           <div style="display: flex; gap: 12px;">
             <div class="prompts-toggle" @click=${() => this._togglePredefinedPrompts()}>
               <ha-icon icon="${this._showPredefinedPrompts ? 'mdi:chevron-up' : 'mdi:chevron-down'}"></ha-icon>
-              <span>Suggestions</span>
+              <span>${this._getLocalizedText('suggestions')}</span>
             </div>
             ${this._promptHistory.length > 0 ? html`
               <div class="prompts-toggle" @click=${() => this._togglePromptHistory()}>
                 <ha-icon icon="${this._showPromptHistory ? 'mdi:chevron-up' : 'mdi:chevron-down'}"></ha-icon>
-                <span>Recent</span>
+                <span>${this._getLocalizedText('recent')}</span>
               </div>
             ` : ''}
           </div>
@@ -874,7 +1117,7 @@ class AiAgentHaPanel extends LitElement {
           .disabled=${this._isLoading}
         >
           <ha-icon icon="mdi:delete-sweep"></ha-icon>
-          <span>Clear Chat</span>
+          <span>${this._getLocalizedText('clearChat')}</span>
         </ha-button>
       </div>
       <div class="content">
@@ -925,7 +1168,7 @@ class AiAgentHaPanel extends LitElement {
             `)}
             ${this._isLoading ? html`
               <div class="loading">
-                <span>AI Agent is thinking</span>
+                <span>${this._getLocalizedText('aiThinking')}</span>
                 <div class="loading-dots">
                   <div class="dot"></div>
                   <div class="dot"></div>
@@ -943,7 +1186,7 @@ class AiAgentHaPanel extends LitElement {
               <div class="input-wrapper">
                 <textarea
                   id="prompt"
-                  placeholder="Ask me anything about your Home Assistant..."
+                  placeholder="${this._getLocalizedText('placeholder')}"
                   ?disabled=${this._isLoading}
                   @keydown=${this._handleKeyDown}
                   @input=${this._autoResize}
@@ -953,7 +1196,7 @@ class AiAgentHaPanel extends LitElement {
 
             <div class="input-footer">
               <div class="provider-selector">
-                <span class="provider-label">Model:</span>
+                <span class="provider-label">${this._getLocalizedText('model')}</span>
                 <select
                   class="provider-button"
                   @change=${(e) => this._selectProvider(e.target.value)}
