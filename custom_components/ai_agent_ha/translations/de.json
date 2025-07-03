@@ -3,45 +3,45 @@
     "step": {
       "user": {
         "title": "KI-Anbieter wählen",
-        "description": "Wähle deinen KI-Anbieter aus",
+        "description": "Wählen Sie Ihren KI-Anbieter aus",
         "data": {
           "ai_provider": "KI-Anbieter"
         },
         "data_description": {
-          "ai_provider": "Wähle deinen bevorzugten KI-Anbieter"
+          "ai_provider": "Wählen Sie Ihren bevorzugten KI-Anbieter"
         }
       },
       "configure": {
         "title": "{provider} konfigurieren",
-        "description": "Gib deinen {token_label} ein und wähle optional ein Model",
+        "description": "Geben Sie Ihren {token_label} ein und wählen Sie optional ein Modell",
         "data": {
           "llama_token": "Llama API Token",
-          "openai_token": "OpenAI API Key",
-          "gemini_token": "Google Gemini API Key",
-          "openrouter_token": "OpenRouter API Key",
-          "anthropic_token": "Anthropic API Key",
-          "model": "Model (Optional)",
-          "custom_model": "Custom Model (Optional)"
+          "openai_token": "OpenAI API Schlüssel",
+          "gemini_token": "Google Gemini API Schlüssel",
+          "openrouter_token": "OpenRouter API Schlüssel",
+          "anthropic_token": "Anthropic API Schlüssel",
+          "model": "Modell (Optional)",
+          "custom_model": "Benutzerdefiniertes Modell (Optional)"
         },
         "data_description": {
-          "llama_token": "Gib deinen Llama API Token ein",
-          "openai_token": "Gib deinen OpenAI API Key ein",
-          "gemini_token": "Gib deinen Google Gemini API Key ein",
-          "openrouter_token": "Gib deinen OpenRouter API Key ein",
-          "anthropic_token": "Gib deinen Anthropic API Key ein",
-          "model": "Wähle ein vordefiniertes Model oder 'Custom...' zum manuellen Eintrag",
-          "custom_model": "Gib einen benutzerdefinierten Model-Namen ein (nur relevant bei Auswahl von 'Custom...')"
+          "llama_token": "Geben Sie Ihren Llama API Token ein",
+          "openai_token": "Geben Sie Ihren OpenAI API Schlüssel ein",
+          "gemini_token": "Geben Sie Ihren Google Gemini API Schlüssel ein",
+          "openrouter_token": "Geben Sie Ihren OpenRouter API Schlüssel ein",
+          "anthropic_token": "Geben Sie Ihren Anthropic API Schlüssel ein",
+          "model": "Wählen Sie ein vordefiniertes Modell oder 'Benutzerdefiniert...' für eigene Eingabe",
+          "custom_model": "Geben Sie einen benutzerdefinierten Modellnamen ein (nur relevant bei Auswahl von 'Benutzerdefiniert...')"
         }
       }
     },
     "error": {
-      "invalid_api_key": "Ungültiges API-Key-Format",
+      "invalid_api_key": "Ungültiges API-Schlüssel-Format",
       "unknown": "Unbekannter Fehler aufgetreten",
       "llama_token": "Llama API Token ist erforderlich",
-      "openai_token": "OpenAI API Key ist erforderlich",
-      "gemini_token": "Google Gemini API Key ist erforderlich",
-      "openrouter_token": "OpenRouter API Key ist erforderlich",
-      "anthropic_token": "Anthropic API Key ist erforderlich"
+      "openai_token": "OpenAI API Schlüssel ist erforderlich",
+      "gemini_token": "Google Gemini API Schlüssel ist erforderlich",
+      "openrouter_token": "OpenRouter API Schlüssel ist erforderlich",
+      "anthropic_token": "Anthropic API Schlüssel ist erforderlich"
     },
     "abort": {
       "already_configured": "AI Agent HA ist bereits konfiguriert"
@@ -50,35 +50,106 @@
   "options": {
     "step": {
       "init": {
-        "title": "Einstellungen für KI-Anbieter",
-        "description": "Aktueller Anbieter: {current_provider}. Wähle einen Anbieter zur Konfiguration",
+        "title": "KI-Anbieter Einstellungen",
+        "description": "Aktueller Anbieter: {current_provider}. Wählen Sie einen Anbieter zur Konfiguration",
         "data": {
           "ai_provider": "KI-Anbieter"
         },
         "data_description": {
-          "ai_provider": "Wähle deinen bevorzugten KI-Anbieter"
+          "ai_provider": "Wählen Sie Ihren bevorzugten KI-Anbieter"
         }
       },
       "configure_options": {
         "title": "{provider} konfigurieren",
-        "description": "Aktualisiere deinen {token_label} und Model-Einstellungen",
+        "description": "Aktualisieren Sie Ihren {token_label} und Modell-Einstellungen",
         "data": {
           "llama_token": "Llama API Token",
-          "openai_token": "OpenAI API Key",
-          "gemini_token": "Google Gemini API Key",
-          "openrouter_token": "OpenRouter API Key",
-          "anthropic_token": "Anthropic API Key",
-          "model": "Model",
-          "custom_model": "Custom Model (Optional)"
+          "openai_token": "OpenAI API Schlüssel",
+          "gemini_token": "Google Gemini API Schlüssel",
+          "openrouter_token": "OpenRouter API Schlüssel",
+          "anthropic_token": "Anthropic API Schlüssel",
+          "model": "Modell",
+          "custom_model": "Benutzerdefiniertes Modell (Optional)"
         },
         "data_description": {
-          "llama_token": "Gib deinen Llama API Token ein",
-          "openai_token": "Gib deinen OpenAI API Key ein",
-          "gemini_token": "Gib deinen Google Gemini API Key ein",
-          "openrouter_token": "Gib deinen OpenRouter API Key ein",
-          "anthropic_token": "Gib deinen Anthropic API Key ein",
-          "model": "Wähle ein Model oder 'Custom...' zum manuellen Eintrag",
-          "custom_model": "Gib einen benutzerdefinierten Model-Namen ein (nur relevant bei Auswahl von 'Custom...')"
+          "llama_token": "Geben Sie Ihren Llama API Token ein",
+          "openai_token": "Geben Sie Ihren OpenAI API Schlüssel ein",
+          "gemini_token": "Geben Sie Ihren Google Gemini API Schlüssel ein",
+          "openrouter_token": "Geben Sie Ihren OpenRouter API Schlüssel ein",
+          "anthropic_token": "Geben Sie Ihren Anthropic API Schlüssel ein",
+          "model": "Wählen Sie ein Modell oder 'Benutzerdefiniert...' für eigene Eingabe",
+          "custom_model": "Geben Sie einen benutzerdefinierten Modellnamen ein (nur relevant bei Auswahl von 'Benutzerdefiniert...')"
+        }
+      }
+    }
+  },
+  "services": {
+    "query": {
+      "name": "KI-Agent mit Home Assistant Kontext abfragen",
+      "description": "Führen Sie eine benutzerdefinierte KI-Anfrage gegen Ihren Home Assistant Zustandsdump aus.",
+      "fields": {
+        "prompt": {
+          "name": "Anfrage",
+          "description": "Die Frage oder Anweisung, die an das KI-Modell gesendet werden soll.",
+          "example": "Schalte alle Lichter im Wohnzimmer ein"
+        },
+        "provider": {
+          "name": "KI-Anbieter",
+          "description": "Der zu verwendende KI-Anbieter (openai, llama, gemini, openrouter)",
+          "example": "openai"
+        }
+      }
+    },
+    "create_dashboard": {
+      "name": "Dashboard über KI-Agent erstellen",
+      "description": "Erstellen Sie ein neues Home Assistant Dashboard mit KI-Unterstützung.",
+      "fields": {
+        "dashboard_config": {
+          "name": "Dashboard-Konfiguration",
+          "description": "Die Dashboard-Konfiguration als JSON-Objekt.",
+          "example": "{\"title\": \"Mein Dashboard\", \"url_path\": \"mein-dashboard\", \"views\": []}"
+        },
+        "provider": {
+          "name": "KI-Anbieter",
+          "description": "Der zu verwendende KI-Anbieter (openai, llama, gemini, openrouter)",
+          "example": "openai"
+        }
+      }
+    },
+    "create_automation": {
+      "name": "Automatisierung über KI-Agent erstellen",
+      "description": "Erstellen Sie eine neue Home Assistant Automatisierung mit KI-Unterstützung.",
+      "fields": {
+        "automation": {
+          "name": "Automatisierung",
+          "description": "Die Automatisierungskonfiguration als JSON-Objekt.",
+          "example": "{\"alias\": \"Lichter um 21 Uhr ausschalten\", \"trigger\": [{\"platform\": \"time\", \"at\": \"21:00:00\"}], \"action\": [{\"service\": \"light.turn_off\", \"target\": {\"entity_id\": \"light.living_room\"}}]}"
+        },
+        "provider": {
+          "name": "KI-Anbieter",
+          "description": "Der zu verwendende KI-Anbieter (openai, llama, gemini, openrouter)",
+          "example": "openai"
+        }
+      }
+    },
+    "update_dashboard": {
+      "name": "Dashboard über KI-Agent aktualisieren",
+      "description": "Aktualisieren Sie ein bestehendes Home Assistant Dashboard mit KI-Unterstützung.",
+      "fields": {
+        "dashboard_url": {
+          "name": "Dashboard-URL",
+          "description": "Der URL-Pfad des zu aktualisierenden Dashboards.",
+          "example": "mein-dashboard"
+        },
+        "dashboard_config": {
+          "name": "Dashboard-Konfiguration",
+          "description": "Die aktualisierte Dashboard-Konfiguration als JSON-Objekt.",
+          "example": "{\"title\": \"Aktualisiertes Dashboard\", \"views\": []}"
+        },
+        "provider": {
+          "name": "KI-Anbieter",
+          "description": "Der zu verwendende KI-Anbieter (openai, llama, gemini, openrouter)",
+          "example": "openai"
         }
       }
     }
