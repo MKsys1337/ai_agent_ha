@@ -2351,7 +2351,7 @@ Then restart Home Assistant to see your new dashboard in the sidebar."""
                             }
                             self._set_cached_data(cache_key, result)
                             return result
-                        elif response_data.get("request_type") in ["get_entities", "get_entities_by_area"]:
+                        elif response_data.get("request_type") in ["get_entities", "get_entities_by_area", "get_entities_by_domain"]:
                             # Handle direct get_entities request (for backward compatibility)
                             parameters = response_data.get("parameters", {})
                             _LOGGER.debug("Processing direct get_entities request with parameters: %s", json.dumps(parameters))
@@ -2368,8 +2368,10 @@ Then restart Home Assistant to see your new dashboard in the sidebar."""
                                     area_id=parameters.get("area_id"),
                                     area_ids=parameters.get("area_ids")
                                 )
-                            else:  # get_entities_by_area
+                            elif response_data.get("request_type") == "get_entities_by_area":
                                 data = await self.get_entities_by_area(parameters.get("area_id"))
+                            else:  # get_entities_by_domain
+                                data = await self.get_entities_by_domain(parameters.get("domain"))
                             
                             _LOGGER.debug("Retrieved %d entities", len(data) if isinstance(data, list) else 1)
                             
