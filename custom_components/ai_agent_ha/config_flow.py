@@ -15,7 +15,7 @@ from homeassistant.helpers.selector import (
     TextSelectorConfig,
 )
 
-from .const import DOMAIN, CONF_LOCAL_URL, CONF_LOCAL_MODEL
+from .const import DOMAIN, CONF_LOCAL_URL, CONF_LOCAL_MODEL, CONF_LANGUAGE, DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -26,6 +26,11 @@ PROVIDERS = {
     "openrouter": "OpenRouter",
     "anthropic": "Anthropic (Claude)",
     "local": "Local Model",
+}
+
+LANGUAGE_OPTIONS = {
+    "en": "English",
+    "de": "Deutsch",
 }
 
 TOKEN_FIELD_NAMES = {
@@ -161,6 +166,10 @@ class AiAgentHaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 # Store the configuration data
                 self.config_data[token_field] = token_value
                 
+                # Add language configuration
+                language = user_input.get(CONF_LANGUAGE, DEFAULT_LANGUAGE)
+                self.config_data[CONF_LANGUAGE] = language
+                
                 # Add model configuration if provided
                 selected_model = user_input.get("model")
                 custom_model = user_input.get("custom_model")
@@ -203,6 +212,11 @@ class AiAgentHaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ),
             }
             
+            # Add language selection
+            schema_dict[vol.Optional(CONF_LANGUAGE, default=DEFAULT_LANGUAGE)] = SelectSelector(
+                SelectSelectorConfig(options=[{"value": k, "label": v} for k, v in LANGUAGE_OPTIONS.items()])
+            )
+            
             # Add model selection
             model_options = AVAILABLE_MODELS.get("local", ["Custom..."])
             schema_dict[vol.Optional("model", default="Custom...")] = SelectSelector(
@@ -228,6 +242,11 @@ class AiAgentHaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 TextSelectorConfig(type="password")
             ),
         }
+        
+        # Add language selection
+        schema_dict[vol.Optional(CONF_LANGUAGE, default=DEFAULT_LANGUAGE)] = SelectSelector(
+            SelectSelectorConfig(options=[{"value": k, "label": v} for k, v in LANGUAGE_OPTIONS.items()])
+        )
         
         # Add model selection if available
         if available_models:
@@ -303,6 +322,7 @@ class AiAgentHaOptionsFlowHandler(config_entries.OptionsFlow):
         current_models = self.config_entry.data.get("models", {})
         current_model = current_models.get(provider, DEFAULT_MODELS[provider])
         current_token = self.config_entry.data.get(token_field, "")
+        current_language = self.config_entry.data.get(CONF_LANGUAGE, DEFAULT_LANGUAGE)
         available_models = AVAILABLE_MODELS.get(provider, [DEFAULT_MODELS[provider]])
         
         # Use current token if provider hasn't changed, otherwise empty
@@ -318,6 +338,10 @@ class AiAgentHaOptionsFlowHandler(config_entries.OptionsFlow):
                     updated_data = dict(self.config_entry.data)
                     updated_data["ai_provider"] = provider
                     updated_data[token_field] = token_value
+                    
+                    # Update language configuration
+                    language = user_input.get(CONF_LANGUAGE, DEFAULT_LANGUAGE)
+                    updated_data[CONF_LANGUAGE] = language
                     
                     # Update model configuration
                     selected_model = user_input.get("model")
@@ -365,6 +389,11 @@ class AiAgentHaOptionsFlowHandler(config_entries.OptionsFlow):
                 ),
             }
             
+            # Add language selection
+            schema_dict[vol.Optional(CONF_LANGUAGE, default=current_language)] = SelectSelector(
+                SelectSelectorConfig(options=[{"value": k, "label": v} for k, v in LANGUAGE_OPTIONS.items()])
+            )
+            
             # Add model selection
             model_options = AVAILABLE_MODELS.get("local", ["Custom..."])
             schema_dict[vol.Optional("model", default=current_model if current_model else "Custom...")] = SelectSelector(
@@ -390,6 +419,11 @@ class AiAgentHaOptionsFlowHandler(config_entries.OptionsFlow):
                 TextSelectorConfig(type="password")
             ),
         }
+        
+        # Add language selection
+        schema_dict[vol.Optional(CONF_LANGUAGE, default=current_language)] = SelectSelector(
+            SelectSelectorConfig(options=[{"value": k, "label": v} for k, v in LANGUAGE_OPTIONS.items()])
+        )
         
         # Add model selection if available
         if available_models:

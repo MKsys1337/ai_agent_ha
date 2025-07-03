@@ -12,6 +12,11 @@ CONF_ANTHROPIC_TOKEN = "anthropic_token"
 CONF_LOCAL_URL = "local_url"
 CONF_LOCAL_MODEL = "local_model"
 
+# Language configuration
+CONF_LANGUAGE = "language"
+DEFAULT_LANGUAGE = "en"
+SUPPORTED_LANGUAGES = ["en", "de"]
+
 # Available AI providers
 AI_PROVIDERS = ["llama", "openai", "gemini", "openrouter", "anthropic", "local"]
 
