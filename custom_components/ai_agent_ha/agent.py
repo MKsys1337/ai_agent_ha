@@ -30,8 +30,98 @@ from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 from homeassistant.helpers.storage import Store
 from .const import DOMAIN, CONF_WEATHER_ENTITY, CONF_LANGUAGE, DEFAULT_LANGUAGE
+import random
+import re
 
 _LOGGER = logging.getLogger(__name__)
+
+# Provider-specific configurations for better rate limiting
+PROVIDER_CONFIGS = {
+    "openai": {
+        "token_limits": {
+            "gpt-4o-mini": {"tpm": 200000, "rpm": 10000, "context": 16384, "max_output": 4096},
+            "gpt-4o": {"tpm": 30000, "rpm": 500, "context": 8192, "max_output": 4096},
+            "gpt-3.5-turbo": {"tpm": 160000, "rpm": 10000, "context": 4096, "max_output": 4096},
+            "gpt-4": {"tpm": 10000, "rpm": 500, "context": 8192, "max_output": 4096}
+        },
+        "max_retries": 10,
+        "base_delay": 1,
+        "max_delay": 120,
+        "timeout": 300
+    },
+    "gemini": {
+        "token_limits": {
+            "gemini-1.5-flash": {"rpm": 1500, "context": 32768},
+            "gemini-1.5-pro": {"rpm": 360, "context": 32768}
+        },
+        "max_retries": 5,
+        "base_delay": 2,
+        "max_delay": 60,
+        "timeout": 30
+    },
+    "anthropic": {
+        "token_limits": {
+            "claude-3-5-sonnet-20241022": {"rpm": 1000, "context": 200000},
+            "claude-3-haiku-20240307": {"rpm": 1000, "context": 200000}
+        },
+        "max_retries": 5,
+        "base_delay": 1,
+        "max_delay": 60,
+        "timeout": 30
+    },
+    "openrouter": {
+        "token_limits": {},  # Varies by model
+        "max_retries": 8,
+        "base_delay": 2,
+        "max_delay": 60,
+        "timeout": 300
+    },
+    "local": {
+        "token_limits": {},
+        "max_retries": 3,
+        "base_delay": 1,
+        "max_delay": 10,
+        "timeout": 30
+    }
+}
+
+def estimate_tokens_simple(text: str) -> int:
+    """Simple token estimation: ~4 characters per token for most models"""
+    if not text:
+        return 0
+    return max(1, len(text) // 4)
+
+def estimate_message_tokens(message: Dict[str, Any]) -> int:
+    """Estimate tokens in a message"""
+    content = message.get("content", "")
+    role = message.get("role", "")
+    # Add overhead for role and formatting
+    return estimate_tokens_simple(content) + estimate_tokens_simple(role) + 4
+
+def parse_retry_after_from_error(error_text: str) -> Optional[float]:
+    """Parse retry-after time from OpenAI error message"""
+    try:
+        # Look for "Please try again in X.Xs" pattern
+        match = re.search(r"try again in ([\d.]+)s", str(error_text))
+        if match:
+            return float(match.group(1))
+        
+        # Look for "Retry-After" style numbers
+        match = re.search(r"retry.{0,10}([\d.]+)", str(error_text), re.IGNORECASE)
+        if match:
+            return float(match.group(1))
+    except (ValueError, AttributeError):
+        pass
+    return None
+
+def calculate_exponential_backoff(retry_count: int, base_delay: float = 1.0, max_delay: float = 60.0) -> float:
+    """Calculate exponential backoff with jitter"""
+    # Exponential backoff: base_delay * (2 ^ retry_count)
+    delay = min(base_delay * (2 ** retry_count), max_delay)
+    
+    # Add jitter (±30% random variation) to avoid thundering herd
+    jitter = random.uniform(0.7, 1.3)
+    return delay * jitter
 
 # === AI Client Abstractions ===
 class BaseAIClient:
@@ -241,7 +331,11 @@ class OpenAIClient(BaseAIClient):
         self.token = token
         self.model = model
         self.api_url = "https://api.openai.com/v1/chat/completions"
-    
+        
+        # Get provider config for this model
+        self.config = PROVIDER_CONFIGS.get("openai", {})
+        self.token_limits = self.config.get("token_limits", {}).get(model, {})
+        
     def _get_token_parameter(self):
         """Determine which token parameter to use based on the model."""
         # Models that require max_completion_tokens instead of max_tokens
@@ -265,12 +359,42 @@ class OpenAIClient(BaseAIClient):
         model_lower = self.model.lower()
         return any(model_id in model_lower for model_id in restricted_models)
     
+    def _estimate_request_tokens(self, messages: List[Dict[str, Any]], max_tokens: int = 2048) -> int:
+        """Estimate total tokens for the request"""
+        input_tokens = sum(estimate_message_tokens(msg) for msg in messages)
+        # Add overhead for API formatting
+        overhead = 50
+        return input_tokens + max_tokens + overhead
+    
+    def _handle_rate_limit_error(self, error_text: str) -> float:
+        """Extract wait time from OpenAI rate limit error"""
+        wait_time = parse_retry_after_from_error(error_text)
+        
+        if "tokens per min" in error_text:
+            # For token rate limits, wait longer
+            return max(wait_time or 60, 30)
+        elif "requests per min" in error_text:
+            # For request rate limits, shorter wait
+            return max(wait_time or 5, 1)
+        else:
+            # Default wait time
+            return wait_time or 10
+
     async def get_response(self, messages, **kwargs):
         _LOGGER.debug("Making request to OpenAI API with model: %s", self.model)
         
         # Validate token
         if not self.token or not self.token.startswith("sk-"):
             raise Exception("Invalid OpenAI API key format")
+        
+        # Pre-check token limits if available
+        if self.token_limits.get("tpm"):
+            estimated_tokens = self._estimate_request_tokens(messages)
+            max_safe_tokens = int(self.token_limits["tpm"] * 0.8)  # Use 80% of limit for safety
+            
+            if estimated_tokens > max_safe_tokens:
+                _LOGGER.warning("Request may exceed token limits: estimated %d tokens, safe limit %d", 
+                               estimated_tokens, max_safe_tokens)
             
         headers = {
             "Authorization": f"Bearer {self.token}",
@@ -284,10 +408,13 @@ class OpenAIClient(BaseAIClient):
                      token_param, self.model, is_restricted)
         
         # Build payload with model-appropriate parameters
+        # Reduce max_tokens to be more conservative
+        max_tokens = min(2048, self.token_limits.get("max_output", 2048))
+        
         payload = {
             "model": self.model,
             "messages": messages,
-            token_param: 2048
+            token_param: max_tokens
         }
         
         # Only add temperature and top_p for models that support them
@@ -305,7 +432,13 @@ class OpenAIClient(BaseAIClient):
                 _LOGGER.debug("OpenAI API response status: %d", resp.status)
                 _LOGGER.debug("OpenAI API response: %s", response_text[:500])
                 
-                if resp.status != 200:
+                if resp.status == 429:
+                    # Rate limit exceeded - extract wait time and raise with specific info
+                    wait_time = self._handle_rate_limit_error(response_text)
+                    error_msg = f"Rate limit exceeded. Wait time: {wait_time}s. Original error: {response_text}"
+                    _LOGGER.warning("OpenAI rate limit hit, recommended wait: %ss", wait_time)
+                    raise Exception(error_msg)
+                elif resp.status != 200:
                     _LOGGER.error("OpenAI API error %d: %s", resp.status, response_text)
                     raise Exception(f"OpenAI API error {resp.status}: {response_text}")
                     
@@ -956,19 +1089,26 @@ class AiAgentHaAgent:
         self.conversation_history = []
         self._cache = {}
         self._cache_timeout = 300  # 5 minutes
-        self._max_retries = 10
-        self._retry_delay = 1  # seconds
-        self._rate_limit = 60  # requests per minute
+        
+        # Get provider and its configuration
+        provider = config.get("ai_provider", "openai")
+        self.provider_config = PROVIDER_CONFIGS.get(provider, PROVIDER_CONFIGS["openai"])
+        
+        # Initialize with provider-specific settings
+        self._max_retries = self.provider_config.get("max_retries", 10)
+        self._base_delay = self.provider_config.get("base_delay", 1)
+        self._max_delay = self.provider_config.get("max_delay", 60)
+        self._rate_limit = 60  # Keep existing simple rate limit as fallback
         self._last_request_time = 0
         self._request_count = 0
         self._request_window_start = time.time()
         
-        provider = config.get("ai_provider", "openai")
         models_config = config.get("models", {})
         language = config.get(CONF_LANGUAGE, DEFAULT_LANGUAGE)
         
         _LOGGER.debug("Initializing AiAgentHaAgent with provider: %s, language: %s", provider, language)
         _LOGGER.debug("Models config loaded: %s", models_config)
+        _LOGGER.debug("Provider config: %s", self.provider_config)
         
         # Set the appropriate system prompt based on provider and language
         if provider == "local":
@@ -990,15 +1130,19 @@ class AiAgentHaAgent:
         if provider == "openai":
             model = models_config.get("openai", "gpt-3.5-turbo")
             self.ai_client = OpenAIClient(config.get("openai_token"), model)
+            self.model = model
         elif provider == "gemini":
             model = models_config.get("gemini", "gemini-1.5-flash")
             self.ai_client = GeminiClient(config.get("gemini_token"), model)
+            self.model = model
         elif provider == "openrouter":
             model = models_config.get("openrouter", "openai/gpt-4o")
             self.ai_client = OpenRouterClient(config.get("openrouter_token"), model)
+            self.model = model
         elif provider == "anthropic":
             model = models_config.get("anthropic", "claude-3-5-sonnet-20241022")
             self.ai_client = AnthropicClient(config.get("anthropic_token"), model)
+            self.model = model
         elif provider == "local":
             model = models_config.get("local", "")
             url = config.get("local_url")
@@ -1006,11 +1150,66 @@ class AiAgentHaAgent:
                 _LOGGER.error("Missing local_url for local provider")
                 raise Exception("Missing local_url configuration for local provider")
             self.ai_client = LocalClient(url, model)
+            self.model = model
         else:  # default to llama if somehow specified
             model = models_config.get("llama", "Llama-4-Maverick-17B-128E-Instruct-FP8")
             self.ai_client = LlamaClient(config.get("llama_token"), model)
+            self.model = model
         
         _LOGGER.debug("AiAgentHaAgent initialized successfully with provider: %s, model: %s", provider, model)
+
+    def _optimize_conversation_history(self, messages: List[Dict[str, Any]], max_tokens: int = 12000) -> List[Dict[str, Any]]:
+        """Optimize conversation history based on token limits"""
+        if not messages:
+            return messages
+        
+        # Always keep system prompt
+        system_msg = None
+        other_messages = messages
+        
+        if messages and messages[0].get("role") == "system":
+            system_msg = messages[0]
+            other_messages = messages[1:]
+        
+        if not other_messages:
+            return messages
+        
+        # Count tokens for system message
+        current_tokens = estimate_message_tokens(system_msg) if system_msg else 0
+        
+        # Add messages from newest to oldest until we hit the limit
+        selected_messages = []
+        for msg in reversed(other_messages):
+            msg_tokens = estimate_message_tokens(msg)
+            if current_tokens + msg_tokens > max_tokens:
+                break
+            selected_messages.insert(0, msg)
+            current_tokens += msg_tokens
+        
+        # Rebuild messages list
+        result = []
+        if system_msg:
+            result.append(system_msg)
+        result.extend(selected_messages)
+        
+        if len(result) < len(messages):
+            _LOGGER.debug("Optimized conversation history: %d -> %d messages, ~%d tokens", 
+                         len(messages), len(result), current_tokens)
+        
+        return result
+
+    def _check_rate_limit(self) -> bool:
+        """Check if we're within rate limits."""
+        current_time = time.time()
+        if current_time - self._request_window_start >= 60:
+            self._request_count = 0
+            self._request_window_start = current_time
+        
+        if self._request_count >= self._rate_limit:
+            return False
+        
+        self._request_count += 1
+        return True
 
     def _validate_api_key(self) -> bool:
         """Validate the API key format."""
@@ -1038,19 +1237,6 @@ class AiAgentHaAgent:
         
         # Add more specific validation based on your API key format
         return len(token) >= 32
-
-    def _check_rate_limit(self) -> bool:
-        """Check if we're within rate limits."""
-        current_time = time.time()
-        if current_time - self._request_window_start >= 60:
-            self._request_count = 0
-            self._request_window_start = current_time
-        
-        if self._request_count >= self._rate_limit:
-            return False
-        
-        self._request_count += 1
-        return True
 
     def _get_cached_data(self, key: str) -> Optional[Any]:
         """Get data from cache if it's still valid."""
@@ -2529,24 +2715,39 @@ Then restart Home Assistant to see your new dashboard in the sidebar."""
             }
 
     async def _get_ai_response(self) -> str:
-        """Get response from the selected AI provider with retries and rate limiting."""
+        """Get response from the selected AI provider with intelligent retries and rate limiting."""
         if not self._check_rate_limit():
             raise Exception("Rate limit exceeded. Please try again later.")
+        
         retry_count = 0
         last_error = None
-        # Limit conversation history to last 10 messages to prevent token overflow
-        recent_messages = self.conversation_history[-10:] if len(self.conversation_history) > 10 else self.conversation_history
-        # Ensure system prompt is always the first message
-        if not recent_messages or recent_messages[0].get("role") != "system":
-            recent_messages = [self.system_prompt] + recent_messages
+        
+        # Get provider and model specific limits
+        provider = self.config.get("ai_provider", "openai")
+        token_limits = self.provider_config.get("token_limits", {}).get(self.model, {})
+        
+        # Determine max context tokens (conservative approach)
+        max_context_tokens = token_limits.get("context", 16384)
+        safe_context_tokens = int(max_context_tokens * 0.7)  # Use 70% of context window
+        
+        # Optimize conversation history based on token limits
+        optimized_messages = self._optimize_conversation_history(
+            self.conversation_history, 
+            safe_context_tokens
+        )
+        
+        # Ensure system prompt is always first
+        if not optimized_messages or optimized_messages[0].get("role") != "system":
+            optimized_messages = [self.system_prompt] + optimized_messages
             
-        _LOGGER.debug("Sending %d messages to AI provider", len(recent_messages))
-        _LOGGER.debug("AI provider: %s", self.config.get("ai_provider", "unknown"))
+        _LOGGER.debug("Sending %d optimized messages to AI provider (was %d)", 
+                     len(optimized_messages), len(self.conversation_history))
+        _LOGGER.debug("AI provider: %s, model: %s", provider, self.model)
         
         while retry_count < self._max_retries:
             try:
                 _LOGGER.debug("Attempt %d/%d: Calling AI client", retry_count + 1, self._max_retries)
-                response = await self.ai_client.get_response(recent_messages)
+                response = await self.ai_client.get_response(optimized_messages)
                 _LOGGER.debug("AI client returned response of length: %d", len(response or ""))
                 _LOGGER.debug("AI response preview: %s", (response or "")[:200])
                 
@@ -2557,17 +2758,41 @@ Then restart Home Assistant to see your new dashboard in the sidebar."""
                         raise Exception("AI provider returned empty response after all retries")
                     else:
                         retry_count += 1
-                        await asyncio.sleep(self._retry_delay * retry_count)
+                        delay = calculate_exponential_backoff(retry_count, self._base_delay, self._max_delay)
+                        _LOGGER.debug("Waiting %ss before retry due to empty response", delay)
+                        await asyncio.sleep(delay)
                         continue
                         
                 return response
+                
             except Exception as e:
-                _LOGGER.error("AI client error on attempt %d: %s", retry_count + 1, str(e))
+                error_str = str(e)
+                _LOGGER.error("AI client error on attempt %d: %s", retry_count + 1, error_str)
                 last_error = e
                 retry_count += 1
-                if retry_count < self._max_retries:
-                    await asyncio.sleep(self._retry_delay * retry_count)
+                
+                # Handle rate limit errors specifically
+                if "rate limit" in error_str.lower() or "429" in error_str:
+                    # Extract wait time from error message
+                    wait_time = parse_retry_after_from_error(error_str)
+                    
+                    if wait_time:
+                        _LOGGER.info("Rate limit hit, waiting %ss as suggested by API", wait_time)
+                        await asyncio.sleep(wait_time)
+                    else:
+                        # Fallback to exponential backoff for rate limits
+                        delay = calculate_exponential_backoff(retry_count, 30, 300)  # Longer delays for rate limits
+                        _LOGGER.info("Rate limit hit, using exponential backoff: %ss", delay)
+                        await asyncio.sleep(delay)
+                else:
+                    # Regular exponential backoff for other errors
+                    if retry_count < self._max_retries:
+                        delay = calculate_exponential_backoff(retry_count, self._base_delay, self._max_delay)
+                        _LOGGER.debug("Waiting %ss before retry (attempt %d)", delay, retry_count)
+                        await asyncio.sleep(delay)
+                
                 continue
+                
         raise Exception(f"Failed after {retry_count} retries. Last error: {str(last_error)}")
 
     def clear_conversation_history(self) -> None:
