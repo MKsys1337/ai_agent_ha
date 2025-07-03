@@ -2318,12 +2318,22 @@ Then restart Home Assistant to see your new dashboard in the sidebar."""
             })
             _LOGGER.debug("Added user query to conversation history")
 
-            max_iterations = 5  # Prevent infinite loops
+            max_iterations = 8  # Prevent infinite loops (increased from 5)
             iteration = 0
+            data_request_count = 0  # Count consecutive data requests
 
             while iteration < max_iterations:
                 iteration += 1
-                _LOGGER.debug(f"Processing iteration {iteration} of {max_iterations}")
+                _LOGGER.info(f"Processing iteration {iteration} of {max_iterations}, data requests: {data_request_count}")
+                
+                # If we've made too many data requests, force a final response
+                if data_request_count >= 4:
+                    _LOGGER.warning("Too many consecutive data requests (%d), forcing final response", data_request_count)
+                    # Add a system message to force the AI to give a final answer
+                    self.conversation_history.append({
+                        "role": "system", 
+                        "content": "IMPORTANT: You have made several data requests. You must now provide a final response to the user with the information you have gathered. Use 'final_response' request_type immediately."
+                    })
                 
                 try:
                     # Get AI response
@@ -2389,10 +2399,11 @@ Then restart Home Assistant to see your new dashboard in the sidebar."""
                         
                         if response_data.get("request_type") == "data_request":
                             # Handle data request
+                            data_request_count += 1  # Increment counter for data requests
                             request_type = response_data.get("request")
                             parameters = response_data.get("parameters", {})
-                            _LOGGER.debug("Processing data request: %s with parameters: %s", 
-                                        request_type, json.dumps(parameters))
+                            _LOGGER.info("Processing data request %d: %s with parameters: %s", 
+                                        data_request_count, request_type, json.dumps(parameters))
                             
                             # Add AI's response to conversation history
                             self.conversation_history.append({
@@ -2500,7 +2511,8 @@ Then restart Home Assistant to see your new dashboard in the sidebar."""
                             })
                             
                             # Return final response
-                            _LOGGER.debug("Received final response: %s", response_data.get("response"))
+                            _LOGGER.info("Received final response after %d iterations and %d data requests: %s", 
+                                        iteration, data_request_count, response_data.get("response"))
                             result = {
                                 "success": True,
                                 "answer": response_data.get("response", "")
@@ -2539,9 +2551,11 @@ Then restart Home Assistant to see your new dashboard in the sidebar."""
                             return result
                         elif response_data.get("request_type") in ["get_entities", "get_entities_by_area", "get_entities_by_domain", "get_area_registry", "get_person_data"]:
                             # Handle direct requests (for backward compatibility)
+                            data_request_count += 1  # Increment counter for data requests
                             parameters = response_data.get("parameters", {})
                             request_type = response_data.get("request_type")
-                            _LOGGER.debug("Processing direct %s request with parameters: %s", request_type, json.dumps(parameters))
+                            _LOGGER.info("Processing direct data request %d: %s with parameters: %s", 
+                                        data_request_count, request_type, json.dumps(parameters))
                             
                             # Add AI's response to conversation history
                             self.conversation_history.append({
@@ -2577,6 +2591,7 @@ Then restart Home Assistant to see your new dashboard in the sidebar."""
                             continue
                         elif response_data.get("request_type") == "call_service":
                             # Handle service call request
+                            data_request_count += 1  # Count service calls as data requests too
                             domain = response_data.get("domain")
                             service = response_data.get("service")
                             target = response_data.get("target", {})
@@ -2598,8 +2613,8 @@ Then restart Home Assistant to see your new dashboard in the sidebar."""
                                         service_data = {k: v for k, v in parameters.items() if k != "entity_id"}
                                         _LOGGER.debug("Converted old format: domain=%s, service=%s", domain, service)
                             
-                            _LOGGER.debug("Processing service call: %s.%s with target: %s and data: %s", 
-                                        domain, service, json.dumps(target), json.dumps(service_data))
+                            _LOGGER.info("Processing service call %d: %s.%s with target: %s and data: %s", 
+                                        data_request_count, domain, service, json.dumps(target), json.dumps(service_data))
                             
                             # Add AI's response to conversation history
                             self.conversation_history.append({
@@ -2626,10 +2641,12 @@ Then restart Home Assistant to see your new dashboard in the sidebar."""
                             })
                             continue
                         else:
-                            _LOGGER.warning("Unknown response type: %s", response_data.get("request_type"))
+                            unknown_type = response_data.get("request_type", "missing")
+                            _LOGGER.error("Unknown response type '%s' in iteration %d after %d data requests. Full response: %s", 
+                                         unknown_type, iteration, data_request_count, json.dumps(response_data))
                             return {
                                 "success": False,
-                                "error": f"Unknown response type: {response_data.get('request_type')}"
+                                "error": f"Unknown response type: {unknown_type}. Please check the AI configuration and ensure proper response formatting."
                             }
                             
                     except json.JSONDecodeError as e:
@@ -2707,10 +2724,19 @@ Then restart Home Assistant to see your new dashboard in the sidebar."""
                     }
 
             # If we've reached max iterations without a final response
-            _LOGGER.warning("Reached maximum iterations without final response")
+            _LOGGER.error("Reached maximum iterations (%d) without final response. Data requests made: %d. Last few messages in conversation:", 
+                         max_iterations, data_request_count)
+            
+            # Log last few messages for debugging
+            for i, msg in enumerate(self.conversation_history[-5:]):
+                _LOGGER.error("Message %d: role=%s, content=%s", 
+                             len(self.conversation_history) - 5 + i, 
+                             msg.get("role", "unknown"), 
+                             str(msg.get("content", ""))[:200])
+            
             result = {
                 "success": False,
-                "error": "Maximum iterations reached without final response"
+                "error": f"Maximum iterations ({max_iterations}) reached without final response. Made {data_request_count} data requests."
             }
             self._set_cached_data(cache_key, result)
             return result
