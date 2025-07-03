@@ -2537,10 +2537,11 @@ Then restart Home Assistant to see your new dashboard in the sidebar."""
                             }
                             self._set_cached_data(cache_key, result)
                             return result
-                        elif response_data.get("request_type") in ["get_entities", "get_entities_by_area", "get_entities_by_domain"]:
-                            # Handle direct get_entities request (for backward compatibility)
+                        elif response_data.get("request_type") in ["get_entities", "get_entities_by_area", "get_entities_by_domain", "get_area_registry", "get_person_data"]:
+                            # Handle direct requests (for backward compatibility)
                             parameters = response_data.get("parameters", {})
-                            _LOGGER.debug("Processing direct get_entities request with parameters: %s", json.dumps(parameters))
+                            request_type = response_data.get("request_type")
+                            _LOGGER.debug("Processing direct %s request with parameters: %s", request_type, json.dumps(parameters))
                             
                             # Add AI's response to conversation history
                             self.conversation_history.append({
@@ -2548,18 +2549,25 @@ Then restart Home Assistant to see your new dashboard in the sidebar."""
                                 "content": json.dumps(response_data)  # Store clean JSON
                             })
                             
-                            # Get entities data
-                            if response_data.get("request_type") == "get_entities":
+                            # Get data based on request type
+                            if request_type == "get_entities":
                                 data = await self.get_entities(
                                     area_id=parameters.get("area_id"),
                                     area_ids=parameters.get("area_ids")
                                 )
-                            elif response_data.get("request_type") == "get_entities_by_area":
+                            elif request_type == "get_entities_by_area":
                                 data = await self.get_entities_by_area(parameters.get("area_id"))
-                            else:  # get_entities_by_domain
+                            elif request_type == "get_entities_by_domain":
                                 data = await self.get_entities_by_domain(parameters.get("domain"))
+                            elif request_type == "get_area_registry":
+                                data = await self.get_area_registry()
+                            elif request_type == "get_person_data":
+                                data = await self.get_person_data()
                             
-                            _LOGGER.debug("Retrieved %d entities", len(data) if isinstance(data, list) else 1)
+                            if isinstance(data, list):
+                                _LOGGER.debug("Retrieved %d items for %s", len(data), request_type)
+                            else:
+                                _LOGGER.debug("Retrieved data for %s", request_type)
                             
                             # Add data to conversation as a system message
                             self.conversation_history.append({
