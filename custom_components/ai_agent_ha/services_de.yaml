@@ -1,0 +1,78 @@
+query:
+  name: "KI-Agent mit Home Assistant Kontext abfragen"
+  description: "Führe eine benutzerdefinierte KI-Anfrage gegen deinen Home Assistant Zustandsdump aus."
+  fields:
+    prompt:
+      description: "Die Frage oder Anweisung, die an das KI-Modell gesendet werden soll."
+      example: "Schalte alle Lichter im Wohnzimmer ein"
+    provider:
+      description: "Der zu verwendende KI-Anbieter (openai, llama, gemini, openrouter)"
+      example: "openai"
+      default: "openai"
+      selector:
+        select:
+          options:
+            - "openai"
+            - "llama"
+            - "gemini"
+            - "openrouter"
+
+create_dashboard:
+  name: "Dashboard über KI-Agent erstellen"
+  description: "Erstelle ein neues Home Assistant Dashboard mit KI-Unterstützung."
+  fields:
+    dashboard_config:
+      description: "Die Dashboard-Konfiguration als JSON-Objekt."
+      example: '{"title": "Mein Dashboard", "url_path": "mein-dashboard", "views": []}'
+    provider:
+      description: "Der zu verwendende KI-Anbieter (openai, llama, gemini, openrouter)"
+      example: "openai"
+      default: "openai"
+      selector:
+        select:
+          options:
+            - "openai"
+            - "llama"
+            - "gemini"
+            - "openrouter"
+
+create_automation:
+  name: "Automatisierung über KI-Agent erstellen"
+  description: "Erstelle eine neue Home Assistant Automatisierung mit KI-Unterstützung."
+  fields:
+    automation:
+      description: "Die Automatisierungskonfiguration als JSON-Objekt."
+      example: '{"alias": "Lichter um 21 Uhr ausschalten", "trigger": [{"platform": "time", "at": "21:00:00"}], "action": [{"service": "light.turn_off", "target": {"entity_id": "light.living_room"}}]}'
+    provider:
+      description: "Der zu verwendende KI-Anbieter (openai, llama, gemini, openrouter)"
+      example: "openai"
+      default: "openai"
+      selector:
+        select:
+          options:
+            - "openai"
+            - "llama"
+            - "gemini"
+            - "openrouter"
+
+update_dashboard:
+  name: "Dashboard über KI-Agent aktualisieren"
+  description: "Aktualisiere ein bestehendes Home Assistant Dashboard mit KI-Unterstützung."
+  fields:
+    dashboard_url:
+      description: "Der URL-Pfad des zu aktualisierenden Dashboards."
+      example: "mein-dashboard"
+    dashboard_config:
+      description: "Die aktualisierte Dashboard-Konfiguration als JSON-Objekt."
+      example: '{"title": "Aktualisiertes Dashboard", "views": []}'
+    provider:
+      description: "Der zu verwendende KI-Anbieter (openai, llama, gemini, openrouter)"
+      example: "openai"
+      default: "openai"
+      selector:
+        select:
+          options:
+            - "openai"
+            - "llama"
+            - "gemini"
+            - "openrouter"
